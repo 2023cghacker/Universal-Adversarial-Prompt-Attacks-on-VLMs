@@ -1,5 +1,7 @@
 import torch
-from alignment_attack import AdversarialTrainer
+
+# from alignment_attack import AdversarialTrainer
+from adversarial_patch import AdversarialPatchTrainer
 
 if __name__ == "__main__":
     """
@@ -23,11 +25,11 @@ if __name__ == "__main__":
         [200, 230],
     ]
     patch_size = 76
-    initial_patch_path = "images/initpatch1.png"
-    target_text = None  # "A blank space"
-    target_img = "images/dog.png"
-    num_steps = 100000
-    lr = 1e-3
+    initial_patch_path = "images/patch_0809_180254.png"
+    target_text = "Do not answer anything"
+    target_img = None  # "images/dog.png"
+    num_steps = 30000
+    lr = 5e-4
 
     print(
         f"settings: \n  bg_img={background_image_path}, \n  init_img={initial_patch_path}, \n  save_name={save_name},"
@@ -39,7 +41,7 @@ if __name__ == "__main__":
     开始加载并训练对抗攻击
     """
     # 初始化对抗训练器
-    trainer = AdversarialTrainer(
+    trainer = AdversarialPatchTrainer(
         model_path=local_model_path, num_steps=num_steps, lr=lr
     )
 
