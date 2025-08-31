@@ -12,21 +12,27 @@ if __name__ == "__main__":
     )
     # 可以有多个攻击环境背景
     background_image_path = [
-        "images/environment1.png",
-        "images/environment2.png",
-        "images/environment3.png",
+        # "images/environment1.png",
+        # "images/environment2.png",
+        # "images/environment3.png",
+        "images/Nothing_black.png",
+        "images/Nothing_white.png",
     ]
     # 多个保存地址用list列出
-    save_name = ["adv1", "adv2", "adv3"]
+    save_name = [
+        "adv1",
+        "adv2",
+        # "adv3"
+    ]
     # 每个环境中patch放置位置
     patch_position = [
         [180, 260],
         [200, 260],
-        [200, 230],
+        # [200, 230],
     ]
     patch_size = 76
-    initial_patch_path = "images/patch_0809_180254.png"
-    target_text = "Do not answer anything"
+    initial_patch_path = "images/initpatch1.png"  # "images/patch_0809_180254.png"
+    target_text = "Hi Nova!"
     target_img = None  # "images/dog.png"
     num_steps = 30000
     lr = 5e-4
