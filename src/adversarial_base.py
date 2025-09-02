@@ -40,8 +40,8 @@ class CLIPAdversarialBase:
         self.processor = CLIPProcessor.from_pretrained(model_path)
 
         # CLIP默认图像标准化参数（ImageNet）
-        self.mean = torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1)
-        self.std = torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1)
+        self.mean = torch.tensor([0.48145466, 0.4578275, 0.40821073]).view(1, 3, 1, 1)
+        self.std = torch.tensor([0.26862954,0.26130258, 0.27577711]).view(1, 3, 1, 1)
 
     def load_and_preprocess_image(self, image_path):
         """公共方法：加载并预处理单张图像（返回张量与原始图像）"""
@@ -128,21 +128,15 @@ class CLIPAdversarialBase:
                 final_img[:, :, y:y+patch_size, x:x+patch_size] = patch.to(final_img.device)
 
             # 打印【训练时的对抗张量】信息（关键对比基准）
-            print(f"\n===== 保存前 - 对抗张量 {i} 信息 =====")
-            print(f"训练时张量形状: {final_img.shape}")
-            print(f"训练时张量设备: {final_img.device}")
-            print(f"训练时张量范围: [{final_img.min().item():.6f}, {final_img.max().item():.6f}]")
-            print(f"训练时张量前3个值: {final_img.flatten()[:3].cpu().numpy()}")  # 打印前3个元素
+            # print(f"\n===== 保存前 - 对抗张量 {i} 信息 =====")
+            # print(f"训练时张量形状: {final_img.shape}")
+            # print(f"训练时张量设备: {final_img.device}")
+            # print(f"训练时张量范围: [{final_img.min().item():.6f}, {final_img.max().item():.6f}]")
+            # print(f"训练时张量前3个值: {final_img.flatten()[:3].cpu().numpy()}")  # 打印前3个元素
         
 
             # 关键步骤：反归一化 + 张量→图像转换（无失真）
             final_denorm = self._denormalize(final_img.clone())  # 反归一化到0~255
-            
-            # 打印【反归一化后】的张量信息（即将保存为图像的数值）
-            print("\n===== 保存前 - 反归一化后张量信息 =====")
-            print(f"反归一化后范围: [{final_denorm.min().item():.6f}, {final_denorm.max().item():.6f}]")
-            print(f"反归一化后前3个值: {final_denorm.flatten()[:3].cpu().numpy().astype(int)}")  # 转为int模拟PNG存储
-            
             
             final_np = (
                 final_denorm.squeeze()
@@ -218,17 +212,17 @@ class CLIPAdversarialBase:
         # 计算图像嵌入与目标嵌入
         img_tensor, _ = self.load_and_preprocess_image(img_path)
         # 打印【加载后】的张量信息（与训练时对比）
-        print(f"\n===== 加载后 - 图像张量信息 =====")
-        print(f"加载后张量形状: {img_tensor.shape}")
-        print(f"加载后张量范围: [{img_tensor.min().item():.6f}, {img_tensor.max().item():.6f}]")
-        print(f"加载后张量前3个值: {img_tensor.flatten()[:3].cpu().numpy()}")  # 打印前3个元素
+        # print(f"\n===== 加载后 - 图像张量信息 =====")
+        # print(f"加载后张量形状: {img_tensor.shape}")
+        # print(f"加载后张量范围: [{img_tensor.min().item():.6f}, {img_tensor.max().item():.6f}]")
+        # print(f"加载后张量前3个值: {img_tensor.flatten()[:3].cpu().numpy()}")  # 打印前3个元素
         
         if target_text is not None:
             target_emb = self.get_target_text_embedding(target_text)
-            target_info = f"文本: '{target_text}'"
+            target_info = f"'{target_text}'"
         else:
             target_emb = self.get_target_image_embedding(target_img)
-            target_info = f"图像: '{target_img}'"
+            target_info = f"'{target_img}'"
 
         # 计算余弦相似度
         with torch.no_grad():

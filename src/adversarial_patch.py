@@ -50,28 +50,29 @@ class AdversarialPatchTrainer(CLIPAdversarialBase):
         if save_names is None or len(save_names) != len(background_image_paths):
             raise ValueError("保存名称列表必须提供且与背景图数量一致")
 
-        # 加载所有背景图像
+        """1.获取目标嵌入（文本或图像）""" 
+        if target_text is not None:
+            target_emb = self.get_target_text_embedding(target_text)
+        else:
+            target_emb = self.get_target_image_embedding(target_img)
+
+
+        """2.加载所有背景图像 """ 
         img_tensors = []
         for img_path in background_image_paths:
             img_tensor, _ = self.load_and_preprocess_image(img_path)
             img_tensors.append(img_tensor)
 
+        """3.初始化对抗patch """
         # 校验所有补丁位置是否超出图像边界
         for i, (img_tensor, pos) in enumerate(zip(img_tensors, positions)):
             x, y = pos
             _, _, h, w = img_tensor.shape
             if x < 0 or x + patch_size > w or y < 0 or y + patch_size > h:
                 raise ValueError(f"第{i}个补丁位置超出图像边界（图像尺寸：{w}x{h}）")
-
-        # 获取目标嵌入（文本或图像）
-        if target_text is not None:
-            target_emb = self.get_target_text_embedding(target_text)
-        else:
-            target_emb = self.get_target_image_embedding(target_img)
-
-        # 初始化补丁（从初始图像或背景图截取）
-        if initial_patch_path is not None:
-            # 从指定路径加载并Resize为补丁尺寸
+            
+        # 创建patch
+        if initial_patch_path is not None: # 从指定路径加载并Resize为补丁尺寸
             trans = transforms.Compose(
                 [
                     transforms.Resize((patch_size, patch_size)),
@@ -81,8 +82,7 @@ class AdversarialPatchTrainer(CLIPAdversarialBase):
             )
             patch_img = Image.open(initial_patch_path).convert("RGB")
             patch = trans(patch_img).to(self.device)
-        else:
-            # 从第一张背景图的指定位置截取并添加噪声
+        else: # 从背景图的指定位置截取并添加噪声
             x_init, y_init = positions[0]
             background_patch = img_tensors[0][
                 :, :, y_init : y_init + patch_size, x_init : x_init + patch_size
@@ -98,6 +98,7 @@ class AdversarialPatchTrainer(CLIPAdversarialBase):
             ].detach()
             original_patches.append(original_patch)
 
+        """4.训练patch """
         # 优化器配置
         patch.requires_grad_(True)
         optimizer = optim.Adam([patch], lr=self.lr)
@@ -125,7 +126,9 @@ class AdversarialPatchTrainer(CLIPAdversarialBase):
                 x, y = pos
                 # 叠加补丁生成对抗图像
                 adv_img = img_tensor.clone()
-                adv_img[:, :, y : y + patch_size, x : x + patch_size] = patch
+                clamp_patch = torch.clamp(patch, 0.0, 1.0)
+                adv_img[:, :, y : y + patch_size, x : x + patch_size] = clamp_patch
+                # print(f"patch 范围:{patch.min().item():.6f}, {patch.max().item():.6f}")
 
                 # 计算对抗损失（余弦相似度损失）
                 img_emb = self.model.get_image_features(pixel_values=adv_img)
@@ -153,6 +156,7 @@ class AdversarialPatchTrainer(CLIPAdversarialBase):
             # 反向传播与优化
             total_loss.backward()
             optimizer.step()
+            patch.data = torch.clamp(patch.data, 0.0, 1.0)
 
             # 时间计算与格式化
             elapsed = datetime.now() - start_time
@@ -174,39 +178,10 @@ class AdversarialPatchTrainer(CLIPAdversarialBase):
 
             # 每10步绘制并保存损失曲线和相似度曲线
             if step % 10 == 0:
-                # 绘制损失曲线
-                plt.figure(figsize=(8, 4))
-                plt.plot(loss_history, label="Total Loss", color="#1f77b4")
-                plt.xlabel("Training Step", fontsize=10)
-                plt.ylabel("Loss Value", fontsize=10)
-                plt.title(f"Patch Training Loss Curve (Step {step})", fontsize=12)
-                plt.legend(fontsize=9)
-                plt.grid(alpha=0.3)
-                plt.tight_layout()
-                loss_path = os.path.join(
-                    self.output_dir, f"loss_curve_{self.timestamp}.png"
-                )
-                plt.savefig(loss_path, dpi=150)
-                plt.close()
-
-                # 绘制相似度曲线
-                plt.figure(figsize=(8, 4))
-                plt.plot(similarity_history, label="Cosine Similarity", color="#ff7f0e")
-                plt.xlabel("Training Step", fontsize=10)
-                plt.ylabel("Similarity Value", fontsize=10)
-                plt.title(f"Embedding Similarity Curve (Step {step})", fontsize=12)
-                plt.ylim(0, 1)  # 余弦相似度范围在0-1之间
-                plt.legend(fontsize=9)
-                plt.grid(alpha=0.3)
-                plt.tight_layout()
-                similarity_path = os.path.join(
-                    self.output_dir, f"similarity_{self.timestamp}.png"
-                )
-                plt.savefig(similarity_path, dpi=150)
-                plt.close()
+                self.plot_curves(loss_history, similarity_history)
 
             # 批量保存当前补丁与所有对抗背景图（每100步）
-            if step % 10== 0:
+            if step % 100== 0:
                 self.save_adversarial_image(
                     img_tensors=img_tensors,
                     base_names=save_names,
@@ -226,7 +201,40 @@ class AdversarialPatchTrainer(CLIPAdversarialBase):
         print(f"\n🎉 补丁训练完成！最终文件保存路径: {final_saved_paths}")
         return final_saved_paths
 
+    def plot_curves(self, loss_history, similarity_history):
+        """辅助方法：绘制并保存损失曲线和相似度曲线"""
+        
+        # 绘制损失曲线
+        plt.figure(figsize=(8, 4))
+        plt.plot(loss_history, label="Total Loss", color="#1f77b4")
+        plt.xlabel("Training Step", fontsize=10)
+        plt.ylabel("Loss Value", fontsize=10)
+        plt.title(f"Patch Training Loss Curve", fontsize=12)
+        plt.legend(fontsize=9)
+        plt.grid(alpha=0.3)
+        plt.tight_layout()
+        loss_path = os.path.join(
+            self.output_dir, f"loss_curve_{self.timestamp}.png"
+        )
+        plt.savefig(loss_path, dpi=150)
+        plt.close()
 
+        
+        # 绘制相似度曲线
+        plt.figure(figsize=(8, 4))
+        plt.plot(similarity_history, label="Cosine Similarity", color="#ff7f0e")
+        plt.xlabel("Training Step", fontsize=10)
+        plt.ylabel("Similarity Value", fontsize=10)
+        plt.title(f"Embedding Similarity Curve", fontsize=12)
+        plt.ylim(0, 1)  # 余弦相似度范围在0-1之间
+        plt.legend(fontsize=9)
+        plt.grid(alpha=0.3)
+        plt.tight_layout()
+        similarity_path = os.path.join(
+            self.output_dir, f"similarity_{self.timestamp}.png"
+        )
+        plt.savefig(similarity_path, dpi=150)
+        plt.close()
 
 # class AdversarialPatchTrainer(CLIPAdversarialBase):
 #     def __init__(self, model_path, device=None, num_steps=300, lr=1e-3):

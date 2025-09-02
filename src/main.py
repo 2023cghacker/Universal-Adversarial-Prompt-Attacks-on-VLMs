@@ -30,9 +30,9 @@ if __name__ == "__main__":
     ]
     patch_size = 76
     initial_patch_path = "images/initpatch1.png"  # "images/patch_0809_180254.png"
-    target_text = "Hi Nova!"
-    target_img = None  # "images/dog.png"
-    num_steps = 100
+    target_text = "a dog"
+    target_img = None #"images/dog.png"
+    num_steps = 30000
     lr = 5e-4
 
     print(
