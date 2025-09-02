@@ -75,66 +75,154 @@ class CLIPAdversarialBase:
         return torch.clamp(tensor * 255.0, 0, 255).byte()
 
     def save_adversarial_image(
-        self,
-        img_tensors,
-        base_names,
-        patch=None,
-        patch_size=80,
-        positions=None,
-        save_suffix=".png",
-    ):
-        """公共方法：批量保存对抗图像（支持单patch+多背景图）"""
+            self,
+            img_tensors,
+            base_names,
+            patch=None,
+            patch_size=80,
+            positions=None,
+            save_suffix=".png",  # 强制默认用PNG（无损格式）
+        ):
+        """
+        公共方法：批量保存对抗图像（支持单patch+多背景图）- 无损版本
+        核心：无压缩PNG保存 + 反归一化逻辑与预处理完全对齐
+        """
         # 输入合法性校验
         if len(img_tensors) != len(base_names):
             raise ValueError("图像张量列表与基础名称列表长度必须一致")
         if positions is not None and len(img_tensors) != len(positions):
             raise ValueError("图像张量列表与位置列表长度必须一致")
+        # 强制校验格式：仅允许PNG（其他格式如JPG为有损，不支持无损保存）
+        if save_suffix.lower() != ".png":
+            raise ValueError("无损保存仅支持PNG格式，请将save_suffix设为'.png'")
 
         saved_paths = []
 
-        # 保存补丁（仅保存1次）
+        # ---------------------- 1. 无损保存补丁（仅1次）----------------------
         if patch is not None:
+            # 反归一化：恢复为0~255范围（与图像预处理反向）
             patch_denorm = self._denormalize(patch.clone())
+            # 张量→numpy：注意数据类型转换（uint8是图像标准格式，避免失真）
             patch_np = (
-                patch_denorm.squeeze().cpu().permute(1, 2, 0).numpy().astype(np.uint8)
+                patch_denorm.squeeze()  # 移除批次维度 (1,3,H,W) → (3,H,W)
+                .cpu()  # 转移到CPU（numpy不支持CUDA张量）
+                .permute(1, 2, 0)  # 维度转置 (3,H,W) → (H,W,3)（符合PIL图像格式）
+                .numpy()
+                .astype(np.uint8)  # 转为8位无符号整数（图像像素标准）
             )
+            # 无压缩保存PNG（compress_level=0表示完全无损，无任何压缩）
             patch_path = os.path.join(
                 self.output_dir, f"patch_{self.timestamp}{save_suffix}"
             )
-            Image.fromarray(patch_np).save(patch_path)
+            Image.fromarray(patch_np).save(patch_path, format="PNG", compress_level=0)
+            # print(f"✅ 无损保存补丁: {patch_path}")
 
-        # 批量保存背景图像（含补丁应用）
+        # ---------------------- 2. 批量无损保存对抗图像 ----------------------
         for i, (img_tensor, base_name) in enumerate(zip(img_tensors, base_names)):
-            final_img = img_tensor.clone()
-            # 应用补丁（若提供）
+            final_img = img_tensor.clone()  # 复制张量，避免修改原数据
+
+            # 应用补丁（若提供）：与训练时叠加逻辑完全一致
             if patch is not None and positions is not None:
                 x, y = positions[i]
-                final_img[:, :, y : y + patch_size, x : x + patch_size] = patch
+                # 确保补丁与图像张量设备一致
+                final_img[:, :, y:y+patch_size, x:x+patch_size] = patch.to(final_img.device)
 
-            # 转换为PIL图像并保存
-            final_denorm = self._denormalize(final_img.clone())
+            # 打印【训练时的对抗张量】信息（关键对比基准）
+            print(f"\n===== 保存前 - 对抗张量 {i} 信息 =====")
+            print(f"训练时张量形状: {final_img.shape}")
+            print(f"训练时张量设备: {final_img.device}")
+            print(f"训练时张量范围: [{final_img.min().item():.6f}, {final_img.max().item():.6f}]")
+            print(f"训练时张量前3个值: {final_img.flatten()[:3].cpu().numpy()}")  # 打印前3个元素
+        
+
+            # 关键步骤：反归一化 + 张量→图像转换（无失真）
+            final_denorm = self._denormalize(final_img.clone())  # 反归一化到0~255
+            
+            # 打印【反归一化后】的张量信息（即将保存为图像的数值）
+            print("\n===== 保存前 - 反归一化后张量信息 =====")
+            print(f"反归一化后范围: [{final_denorm.min().item():.6f}, {final_denorm.max().item():.6f}]")
+            print(f"反归一化后前3个值: {final_denorm.flatten()[:3].cpu().numpy().astype(int)}")  # 转为int模拟PNG存储
+            
+            
             final_np = (
-                final_denorm.squeeze().cpu().permute(1, 2, 0).numpy().astype(np.uint8)
+                final_denorm.squeeze()
+                .cpu()
+                .permute(1, 2, 0)
+                .numpy()
+                .astype(np.uint8)  # 必须用uint8，否则PIL保存时会自动截断导致失真
             )
+
+            # 无压缩保存PNG
             save_path = os.path.join(
                 self.output_dir, f"{base_name}_{self.timestamp}{save_suffix}"
             )
-            Image.fromarray(final_np).save(save_path)
+            Image.fromarray(final_np).save(save_path, format="PNG", compress_level=0)
             saved_paths.append(save_path)
 
-        print(f"✅ 已保存 {len(saved_paths)} 张对抗图像")
+        # print(f"✅ 已无损保存 {len(saved_paths)} 张对抗图像（无压缩PNG）")
         return saved_paths
+    # def save_adversarial_image(
+    #     self,
+    #     img_tensors,
+    #     base_names,
+    #     patch=None,
+    #     patch_size=80,
+    #     positions=None,
+    #     save_suffix=".png",
+    # ):
+    #     """公共方法：批量保存对抗图像（支持单patch+多背景图）"""
+    #     # 输入合法性校验
+    #     if len(img_tensors) != len(base_names):
+    #         raise ValueError("图像张量列表与基础名称列表长度必须一致")
+    #     if positions is not None and len(img_tensors) != len(positions):
+    #         raise ValueError("图像张量列表与位置列表长度必须一致")
+
+    #     saved_paths = []
+
+    #     # 保存补丁（仅保存1次）
+    #     if patch is not None:
+    #         patch_denorm = self._denormalize(patch.clone())
+    #         patch_np = (
+    #             patch_denorm.squeeze().cpu().permute(1, 2, 0).numpy().astype(np.uint8)
+    #         )
+    #         patch_path = os.path.join(
+    #             self.output_dir, f"patch_{self.timestamp}{save_suffix}"
+    #         )
+    #         Image.fromarray(patch_np).save(patch_path)
+
+    #     # 批量保存背景图像（含补丁应用）
+    #     for i, (img_tensor, base_name) in enumerate(zip(img_tensors, base_names)):
+    #         final_img = img_tensor.clone()
+    #         # 应用补丁（若提供）
+    #         if patch is not None and positions is not None:
+    #             x, y = positions[i]
+    #             final_img[:, :, y : y + patch_size, x : x + patch_size] = patch
+
+    #         # 转换为PIL图像并保存
+    #         final_denorm = self._denormalize(final_img.clone())
+    #         final_np = (
+    #             final_denorm.squeeze().cpu().permute(1, 2, 0).numpy().astype(np.uint8)
+    #         )
+    #         save_path = os.path.join(
+    #             self.output_dir, f"{base_name}_{self.timestamp}{save_suffix}"
+    #         )
+    #         Image.fromarray(final_np).save(save_path)
+    #         saved_paths.append(save_path)
+
+    #     # print(f"✅ 已保存 {len(saved_paths)} 张对抗图像")
+    #     return saved_paths
 
     def test(self, img_path, target_text=None, target_img=None):
         """公共方法：测试图像与目标（文本/图像）的余弦相似度"""
-        # 输入合法性校验
-        if not os.path.exists(img_path):
-            raise FileNotFoundError(f"测试图像不存在: {img_path}")
-        if not ((target_text is None) ^ (target_img is None)):
-            raise ValueError("target_text与target_img必须二选一")
 
         # 计算图像嵌入与目标嵌入
         img_tensor, _ = self.load_and_preprocess_image(img_path)
+        # 打印【加载后】的张量信息（与训练时对比）
+        print(f"\n===== 加载后 - 图像张量信息 =====")
+        print(f"加载后张量形状: {img_tensor.shape}")
+        print(f"加载后张量范围: [{img_tensor.min().item():.6f}, {img_tensor.max().item():.6f}]")
+        print(f"加载后张量前3个值: {img_tensor.flatten()[:3].cpu().numpy()}")  # 打印前3个元素
+        
         if target_text is not None:
             target_emb = self.get_target_text_embedding(target_text)
             target_info = f"文本: '{target_text}'"

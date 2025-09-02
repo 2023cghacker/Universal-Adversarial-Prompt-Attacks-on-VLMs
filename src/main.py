@@ -7,9 +7,7 @@ if __name__ == "__main__":
     """
     设置参数
     """
-    local_model_path = (
-        "/HOME/paratera_xy/pxy480/HDD_POOL/Ling/downloads/clip-vit-large-patch14-336"
-    )
+    local_model_path = "/root/lingchen/weights/clip-vit-large-patch14-336"
     # 可以有多个攻击环境背景
     background_image_path = [
         # "images/environment1.png",
@@ -34,7 +32,7 @@ if __name__ == "__main__":
     initial_patch_path = "images/initpatch1.png"  # "images/patch_0809_180254.png"
     target_text = "Hi Nova!"
     target_img = None  # "images/dog.png"
-    num_steps = 30000
+    num_steps = 100
     lr = 5e-4
 
     print(
