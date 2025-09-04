@@ -7,7 +7,7 @@ if __name__ == "__main__":
     """
     设置参数
     """
-    local_model_path = "/root/lingchen/weights/clip-vit-large-patch14-336"
+    local_model_path = "/hy-tmp/weights/clip-vit-large-patch14-336"
     # 可以有多个攻击环境背景
     background_image_path = [
         # "images/environment1.png",
@@ -30,8 +30,8 @@ if __name__ == "__main__":
     ]
     patch_size = 76
     initial_patch_path = "images/initpatch1.png"  # "images/patch_0809_180254.png"
-    target_text = "a dog"
-    target_img = None #"images/dog.png"
+    target_text = "pig"
+    target_img = None #"images/pig.png"
     num_steps = 30000
     lr = 5e-4
 

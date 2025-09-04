@@ -109,10 +109,10 @@ def plot_loss(loss_list, filename):
 
 def LanguageSpace_Attack():
     # --- 初始化参数 ---
-    model_path = "/root/lc/DeepSeek-R1-Distill-Qwen-1.5B"
-    original_prompt = "Please introduce the composition of the refrigerator"
-    target_output = "I hate you."
-    suffix_length = 10
+    model_path = "/hy-tmp/weights/DeepSeek-R1-Distill-Qwen-1.5B"
+    original_prompt = "Count how many goods are on the shelves."
+    target_output = "I didn't see any goods"
+    suffix_length = 15
     num_steps = 500
     lr = 1e-1
 

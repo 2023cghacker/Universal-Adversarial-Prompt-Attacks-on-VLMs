@@ -9,5 +9,8 @@ pip install transformers
 pip install accelerate
 pip install matplotlib
 pip install tiktoken
+pip install protobuf
+pip install sentencepiece
+
 
 # scp -P port -r local_dirpath root@serverip:server_dirpath
