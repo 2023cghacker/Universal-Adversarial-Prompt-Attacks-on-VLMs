@@ -10,28 +10,35 @@ if __name__ == "__main__":
     local_model_path = "/hy-tmp/weights/clip-vit-large-patch14-336"
     # 可以有多个攻击环境背景
     background_image_path = [
-        # "images/environment1.png",
-        # "images/environment2.png",
-        # "images/environment3.png",
-        "images/Nothing_black.png",
-        "images/Nothing_white.png",
+        # "images/env/environment1.png",
+        "images/env/environment2.png",
+        "images/env/environment3.png",
+        # "images/env/environment4.jpg",
+        "images/env/environment5.jpg",
+        # "images/env/environment6.jpg",
+        # "images/env/environment7.png",
+        # "images/Nothing_black.png",
+        # "images/Nothing_white.png",
+        # "images/env+text/environment5.png",
     ]
     # 多个保存地址用list列出
     save_name = [
         "adv1",
         "adv2",
-        # "adv3"
+        "adv3",
+        # "adv4"
     ]
     # 每个环境中patch放置位置
     patch_position = [
+        [150,230],
         [180, 260],
         [200, 260],
         # [200, 230],
     ]
-    patch_size = 76
+    patch_size = 75
     initial_patch_path = "images/initpatch1.png"  # "images/patch_0809_180254.png"
-    target_text = "pig"
-    target_img = None #"images/pig.png"
+    target_text = None# "Nova"
+    target_img = "images/qingtongma.png"
     num_steps = 30000
     lr = 5e-4
 

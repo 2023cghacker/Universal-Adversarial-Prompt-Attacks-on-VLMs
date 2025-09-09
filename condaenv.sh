@@ -11,6 +11,7 @@ pip install matplotlib
 pip install tiktoken
 pip install protobuf
 pip install sentencepiece
+pip install datasets
 
 
 # scp -P port -r local_dirpath root@serverip:server_dirpath
