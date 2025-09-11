@@ -13,6 +13,7 @@ pip install tiktoken
 pip install protobuf
 pip install sentencepiece
 pip install datasets
-
+pip install qwen-omni-utils[decord] -U
+pip install qwen-vl-utils[decord]==0.0.8
 
 # scp -P port -r local_dirpath root@serverip:server_dirpath
