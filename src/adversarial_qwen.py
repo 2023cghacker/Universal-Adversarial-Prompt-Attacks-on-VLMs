@@ -1,90 +1,116 @@
 import torch
+import torch.nn as nn
+import torch.optim as optim
+from transformers import Qwen2_5_VLForConditionalGeneration, AutoProcessor
 from PIL import Image
 import torchvision.transforms as T
-from transformers import AutoProcessor, Qwen2_5_VLForConditionalGeneration
 
 # --------------------------
 # 配置
 # --------------------------
 MODEL_DIR = "/hy-tmp/weights/Qwen2.5-VL-7B-Instruct"
-IMAGE_PATH = "/root/lingchen/Universal-Adversarial-Prompt-Attacks-on-VLMs/images/apple.png"
-DEVICE = "cuda"
-EPS = 8/255.0
-LR = 1e-3
-STEPS = 50
+TARGET_IMAGE_PATH = "/root/lingchen/Universal-Adversarial-Prompt-Attacks-on-VLMs/images/apple.png"
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+
+LR = 5e-1
+STEPS = 500
 
 # --------------------------
-# 1. 加载模型和 processor
+# 加载模型 & 处理器
 # --------------------------
 model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
     MODEL_DIR,
-    torch_dtype=torch.bfloat16,
+    dtype=torch.bfloat16,
     device_map="auto",
 )
 processor = AutoProcessor.from_pretrained(MODEL_DIR)
 
 # --------------------------
-# 2. 加载原始图像并生成 pixel_values
+# 目标图像 → embedding
 # --------------------------
-pil_img = Image.open(IMAGE_PATH).convert("RGB")
-print(f"\n> 原始PIL图像尺寸 (宽, 高): {pil_img.size}")
-inputs = processor(text=["Describe this image"],images=pil_img, return_tensors="pt").to(DEVICE)
-target_pixel_values = inputs["pixel_values"]  # (1,C,H,W)
-image_grid_thw = inputs["image_grid_thw"]  # shape: (1,3)
-print(f"> target_pixel_values shape: {target_pixel_values.shape}",
-      f"> image_grid_thw: {image_grid_thw}")
+target_image = Image.open(TARGET_IMAGE_PATH).convert("RGB")
 
-# 获取目标潜在表示
+# processor 会自动做 resize/normalize → tensor
 with torch.no_grad():
-    target_latent = model.get_image_features(target_pixel_values, image_grid_thw)  # (1, N_patch, D)
-    print(f"> target_latent shape: {target_latent[0].shape}")
+    target_inputs = processor(text=["Describe this image"],images=[target_image], return_tensors="pt").to(DEVICE)
+    target_embeds = model.get_image_features(target_inputs['pixel_values'], target_inputs['image_grid_thw'])  # (1, seq_len, dim)
 
 # --------------------------
-# 3. 初始化 adversarial image
+# 随机初始化图像 (噪声)
 # --------------------------
-adv_img = target_pixel_values.clone().detach()  # 先克隆原始像素值（不立即开启梯度）
-random_noise = torch.normal(mean=0.0, std=EPS/3, size=adv_img.shape, device=DEVICE)
-adv_img = torch.clamp(adv_img + random_noise, target_pixel_values - EPS, target_pixel_values + EPS)
-adv_img = adv_img.requires_grad_(True)
+rand_image = torch.randn(1, 3, target_image.height, target_image.width, device=DEVICE, requires_grad=True)
 
-print(f"> adv_img shape: {adv_img.shape}")
-optimizer = torch.optim.Adam([adv_img], lr=LR)
-loss_fct = torch.nn.MSELoss()
+optimizer = optim.Adam([rand_image], lr=LR)
+# 添加学习率调度器 - 每STEP_SIZE步将学习率乘以GAMMA
+scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.90)
+loss_fn = nn.MSELoss()
 
 # --------------------------
-# 4. 在视觉潜在空间中对齐
+# 优化循环
 # --------------------------
 for step in range(STEPS):
     optimizer.zero_grad()
-    
-    # 可限制扰动范围
-    adv_img_clamped = torch.clamp(adv_img, target_pixel_values-EPS, target_pixel_values+EPS)
-    
-    # 获取 adversarial latent
-    adv_latent = model.get_image_features(adv_img_clamped,image_grid_thw)
-    print(f"> adv_latent shape: {adv_latent[0].shape}")
-    
-    # latent space 对齐
-    loss = loss_fct(adv_latent[0], target_latent[0])
+
+    # 当前图像 embedding
+    cur_inputs = processor(text=["Describe this image"],images=[rand_image.squeeze(0).clamp(0, 1)],
+                           return_tensors="pt").to(DEVICE)
+    cur_embeds = model.get_image_features(cur_inputs['pixel_values'], cur_inputs['image_grid_thw'])  # (1, seq_len, dim)
+
+    # 目标：embedding 接近
+    loss = loss_fn(cur_embeds[0], target_embeds[0])
+
     loss.backward()
     optimizer.step()
-    
-    if step % 1 == 0:
-        print(f"Step {step}, Loss: {loss.item():.6f}")
+    scheduler.step()
+
+    # 限制像素范围
+    with torch.no_grad():
+        rand_image.clamp_(0, 1)
+
+    if (step + 1) % 1 == 0:
+        print(f"Step {step+1}/{STEPS}, Loss={loss.item():.6f}")
+        # 保存中间结果
+        if (step + 1) % 20 == 0:
+            T.ToPILImage()(rand_image.squeeze(0).cpu()).save(f"output/adv_step.png")
+            
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "image": "output/adv_step.png",
+                        },
+                        {"type": "text", "text": "Describe this image."},
+                    ],
+                }
+            ]
+
+            # Preparation for inference
+            text = processor.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=True
+            )
+            inputs = processor(
+                text=[text],
+                images=[rand_image.squeeze(0).clamp(0, 1)],
+                return_tensors="pt",
+            )
+            inputs = inputs.to("cuda")
+
+            # Inference: Generation of the output
+            generated_ids = model.generate(**inputs, max_new_tokens=128)
+            generated_ids_trimmed = [
+                out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
+            ]
+            output_text = processor.batch_decode(
+                generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
+            )
+            print(f"output_text={output_text}")
 
 # --------------------------
-# 5. 保存对抗样本
+# 保存最终结果
 # --------------------------
-# 将 adv_img 转回 [0,1] 范围并保存
-mean = processor.image_processor.image_mean
-std = processor.image_processor.image_std
+adv_img_pil = T.ToPILImage()(rand_image.squeeze(0).cpu())
+adv_img_pil.save("adv_reconstructed.png")
 
-# 反归一化
-adv_img_denorm = adv_img_clamped.squeeze(0).detach().cpu()
-for c in range(3):
-    adv_img_denorm[c] = adv_img_denorm[c] * std[c] + mean[c]
-
-adv_img_denorm = torch.clamp(adv_img_denorm, 0, 1)
-adv_pil = T.ToPILImage()(adv_img_denorm)
-adv_pil.save("adv_latent_aligned.png")
-print("Saved adversarial latent-aligned image as adv_latent_aligned.png")
+print("\n✅ 对抗优化完成，已保存到 adv_reconstructed.png")
