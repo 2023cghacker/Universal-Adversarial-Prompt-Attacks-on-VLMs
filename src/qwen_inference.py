@@ -1,118 +1,127 @@
-# from transformers import Qwen2_5_VLForConditionalGeneration, AutoTokenizer, AutoProcessor
-# from qwen_vl_utils import process_vision_info
-# import torch
-
-# # default: Load the model on the available device(s)
-# # model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
-# #     "Qwen/Qwen2.5-VL-7B-Instruct", torch_dtype="auto", device_map="auto"
-# # )
-
-# # We recommend enabling flash_attention_2 for better acceleration and memory saving, especially in multi-image and video scenarios.
-# model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
-#     "/hy-tmp/weights/Qwen2.5-VL-7B-Instruct",
-#     torch_dtype=torch.bfloat16,
-#     # attn_implementation="flash_attention_2",
-#     device_map="auto",
-# )
-
-# # default processer
-# processor = AutoProcessor.from_pretrained("/hy-tmp/weights/Qwen2.5-VL-7B-Instruct")
-
-# # The default range for the number of visual tokens per image in the model is 4-16384.
-# # You can set min_pixels and max_pixels according to your needs, such as a token range of 256-1280, to balance performance and cost.
-# # min_pixels = 256*28*28
-# # max_pixels = 1280*28*28
-# # processor = AutoProcessor.from_pretrained("Qwen/Qwen2.5-VL-7B-Instruct", min_pixels=min_pixels, max_pixels=max_pixels)
-
-# messages = [
-#     {
-#         "role": "user",
-#         "content": [
-#             {
-#                 "type": "image",
-#                 "image": "/root/lingchen/Universal-Adversarial-Prompt-Attacks-on-VLMs/output/0911_172820/adv_step.png",
-#             },
-#             {"type": "text", "text": "Describe this image."},
-#         ],
-#     }
-# ]
-
-# # Preparation for inference
-# text = processor.apply_chat_template(
-#     messages, tokenize=False, add_generation_prompt=True
-# )
-# image_inputs, video_inputs = process_vision_info(messages)
-# # print(f"image_inputs.shape={image_inputs[0].shape}")
-# inputs = processor(
-#     text=[text],
-#     images=image_inputs,
-#     videos=video_inputs,
-#     padding=True,
-#     return_tensors="pt",
-# )
-# inputs = inputs.to("cuda")
-
-# # Inference: Generation of the output
-# generated_ids = model.generate(**inputs, max_new_tokens=128)
-# generated_ids_trimmed = [
-#     out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
-# ]
-# output_text = processor.batch_decode(
-#     generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
-# )
-# print(f"\n\noutput_text={output_text}")
-
-
 from transformers import Qwen2_5_VLForConditionalGeneration, AutoProcessor
-import torch
-import torchvision.transforms as T
+from qwen_vl_utils import process_vision_info
 from PIL import Image
+import torch
+import numpy as np
 
-# 加载模型
-model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
-    "/hy-tmp/weights/Qwen2.5-VL-7B-Instruct",
-    dtype=torch.bfloat16,
-    device_map="auto",
-)
+class QwenVLM:
+    def __init__(self, model_path):
+        """初始化模型和处理器"""
+        self.model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
+            model_path,
+            torch_dtype=torch.bfloat16,
+            device_map="auto",
+        )
+        self.processor = AutoProcessor.from_pretrained(model_path)
+    
+    def describe_image_pil(self, image_path, prompt="Describe this image.", max_new_tokens=128):
+        """生成图像描述"""
+        # 构建输入消息
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "image", "image": image_path},
+                    {"type": "text", "text": prompt}
+                ]
+            }
+        ]
+        
+        # 处理输入
+        text = self.processor.apply_chat_template(
+            messages, tokenize=False, add_generation_prompt=True
+        )
+        image_inputs, video_inputs = process_vision_info(messages)
+        
+        inputs = self.processor(
+            text=[text],
+            images=image_inputs,
+            videos=video_inputs,
+            padding=True,
+            return_tensors="pt",
+        ).to("cuda")
+        
+        # 生成回答
+        generated_ids = self.model.generate(** inputs, max_new_tokens=max_new_tokens)
+        generated_ids_trimmed = [
+            out_ids[len(in_ids):] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
+        ]
+        
+        return self.processor.batch_decode(
+            generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
+        )
+    
+    def describe_image_tensor(self, image_tensor, prompt="Describe this image.", max_new_tokens=128):
+        """生成图像描述（接受图像张量作为输入）"""
+        # 构建输入消息（使用占位符路径，实际会被传入的tensor替换）
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "image", "image": "placeholder_image_path"},  # 占位符
+                    {"type": "text", "text": prompt}
+                ]
+            }
+        ]
+        
+        # 处理文本输入
+        text = self.processor.apply_chat_template(
+            messages, tokenize=False, add_generation_prompt=True
+        )
+        
+        # 直接使用传入的图像张量作为输入（不再从路径加载）
+        # 注意：需要确保tensor的格式与模型期望的一致（通常是RGB格式，值范围正确）
+        image_inputs = [image_tensor]
+        video_inputs = None
+        
+        # 处理输入
+        inputs = self.processor(
+            text=[text],
+            images=image_inputs,  # 传入张量而非路径
+            videos=video_inputs,
+            padding=True,
+            return_tensors="pt",
+        ).to("cuda")
+        
+        # 生成回答
+        generated_ids = self.model.generate(**inputs, max_new_tokens=max_new_tokens)
+        generated_ids_trimmed = [
+            out_ids[len(in_ids):] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
+        ]
+        
+        return self.processor.batch_decode(
+            generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
+        )
+    
+    
+    @staticmethod
+    def get_image_size(image_path):
+        """获取图像尺寸，返回(宽度, 高度)元组"""
+        with Image.open(image_path) as img:
+            return img.size
 
-# 加载处理器
-processor = AutoProcessor.from_pretrained("/hy-tmp/weights/Qwen2.5-VL-7B-Instruct")
 
-# 读取PNG并转成tensor (C,H,W)，范围 [0,1]
-image_path = "/root/lingchen/Universal-Adversarial-Prompt-Attacks-on-VLMs/images/attack/test2.png"
-image = Image.open(image_path).convert("RGB")
-image_tensor = T.ToTensor()(image)  # (3,H,W)
+# 使用示例
+if __name__ == "__main__":
+    # 初始化处理器
+    vl_processor = QwenVLM("/hy-tmp/weights/Qwen2.5-VL-7B-Instruct")
+    
+    # 图像路径
+    img_path = "/root/lingchen/Universal-Adversarial-Prompt-Attacks-on-VLMs/images/dog.png"
+    
+    # 获取并打印图像大小
+    img_size = vl_processor.get_image_size(img_path)
+    print(f"图像大小: 宽度={img_size[0]}px, 高度={img_size[1]}px")
+    
+    # 生成图像描述
+    description = vl_processor.describe_image_pil(img_path)
+    print(f"\n图像(pil)描述: {description[0]}")
 
-# 消息必须有 image 类型
-messages = [
-    {
-        "role": "user",
-        "content": [
-            {"type": "image"},   # 占位符，告诉 processor 有图像
-            {"type": "text", "text": "Describe this image."}
-        ],
-    }
-]
 
-# 构建文本输入
-text = processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+    # 加载图像并转换为张量
+    img = Image.open(img_path).convert("RGB")
+    img_tensor = torch.tensor(np.array(img))  # 转换为张量
 
-# text + image 一起送进 processor
-inputs = processor(
-    text=[text],
-    images=[image_tensor],   # 传 tensor
-    padding=True,
-    return_tensors="pt",
-)
-inputs = inputs.to("cuda")
-
-# 推理
-generated_ids = model.generate(**inputs, max_new_tokens=128)
-generated_ids_trimmed = [
-    out_ids[len(in_ids):] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
-]
-output_text = processor.batch_decode(
-    generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
-)
-
-print(f"\n\noutput_text={output_text}")
+    # 生成图像描述
+    description = vl_processor.describe_image_tensor(img_tensor)
+    print(f"\n图像(tensor)描述: {description[0]}")

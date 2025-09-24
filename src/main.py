@@ -1,7 +1,7 @@
 import torch
 
 # from alignment_attack import AdversarialTrainer
-from adversarial_patch import AdversarialPatchTrainer
+from adversarial_patch import CLIPAdversarialPatch
 
 if __name__ == "__main__":
     """
@@ -52,7 +52,7 @@ if __name__ == "__main__":
     开始加载并训练对抗攻击
     """
     # 初始化对抗训练器
-    trainer = AdversarialPatchTrainer(
+    trainer = CLIPAdversarialPatch(
         model_path=local_model_path, num_steps=num_steps, lr=lr
     )
 

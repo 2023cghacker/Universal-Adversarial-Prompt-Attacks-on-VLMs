@@ -37,12 +37,6 @@ class QwenAdversarialBase:
         self.target_embeds = None
         self._process_target_image()
         
-        # 优化器和调度器
-        self.rand_image = None
-        self.optimizer = None
-        self.scheduler = None
-        self.loss_fn = nn.MSELoss()
-        self._init_optimizer()
     
     def _load_model(self):
         """加载模型和处理器"""
@@ -95,7 +89,7 @@ class QwenAdversarialBase:
         T.ToPILImage()(self.rand_image.squeeze(0).cpu()).save(img_path)
         return img_path
     
-    def _generate_description(self, step):
+    def _generate_description(self, img_tensor,step):
         """生成当前图像的描述"""
         messages = [
             {
@@ -116,7 +110,7 @@ class QwenAdversarialBase:
         )
         inputs = self.processor(
             text=[text],
-            images=[self.rand_image.squeeze(0).clamp(0, 1)],
+            images=[img_tensor.squeeze(0).clamp(0, 1)],
             return_tensors="pt",
         )
         inputs = inputs.to(self.device)
@@ -148,7 +142,16 @@ class QwenAdversarialBase:
     
     def run_optimization(self):
         """运行优化循环"""
+        # 优化器和调度器
+        self.rand_image = None
+        self.optimizer = None
+        self.scheduler = None
+        self.loss_fn = nn.MSELoss()
+        self._init_optimizer()
+        
+        
         print(f"开始优化，共{self.steps}步，使用设备: {self.device}")
+        
         
         for step in range(self.steps):
             self.optimizer.zero_grad()
@@ -184,7 +187,7 @@ class QwenAdversarialBase:
                 # 保存中间结果和生成描述
                 if (step + 1) % 20 == 0:
                     self._save_intermediate_result(step)
-                    desc = self._generate_description(step)
+                    desc = self._generate_description(self.rand_image,step)
                     print(f"图像描述: {desc}")
         
         # 保存最终结果
