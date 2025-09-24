@@ -3,6 +3,8 @@ from qwen_vl_utils import process_vision_info
 from PIL import Image
 import torch
 import numpy as np
+from torchvision import transforms  # 导入transforms
+
 
 class QwenVLM:
     def __init__(self, model_path):
@@ -120,7 +122,14 @@ if __name__ == "__main__":
 
     # 加载图像并转换为张量
     img = Image.open(img_path).convert("RGB")
-    img_tensor = torch.tensor(np.array(img))  # 转换为张量
+    img = img.resize((524, 544), Image.BICUBIC)  
+        
+    # img_tensor = torch.tensor(np.array(img))  # 转换为张量
+    # transform = transforms.ToTensor()
+    # img_tensor = transform(img)  # 直接转张量：(C, H, W)，值范围0-1
+    
+    img_tensor = torch.as_tensor(img, dtype=torch.uint8).permute(2, 0, 1).contiguous()
+    print(f"img_tensor.shape: {img_tensor.shape}")  # 应为 (H, W, C)
 
     # 生成图像描述
     description = vl_processor.describe_image_tensor(img_tensor)

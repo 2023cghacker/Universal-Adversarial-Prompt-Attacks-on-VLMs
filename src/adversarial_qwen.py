@@ -110,7 +110,9 @@ class QwenAdversarialBase:
         )
         inputs = self.processor(
             text=[text],
-            images=[img_tensor.squeeze(0).clamp(0, 1)],
+            # images=[img_tensor.squeeze(0).clamp(0, 1)],
+            images=[img_tensor],
+            padding=True,
             return_tensors="pt",
         )
         inputs = inputs.to(self.device)
