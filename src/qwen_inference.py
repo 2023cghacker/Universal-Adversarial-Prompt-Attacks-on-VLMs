@@ -21,6 +21,10 @@ class QwenVLM:
         # 构建输入消息
         messages = [
             {
+                "role": "system",
+                "content": "You are a embodied AI Nova, please carefully observe the environmental images and answer user questions."
+            },
+            {
                 "role": "user",
                 "content": [
                     {"type": "image", "image": image_path},
@@ -57,6 +61,10 @@ class QwenVLM:
         """生成图像描述（接受图像张量作为输入）"""
         # 构建输入消息（使用占位符路径，实际会被传入的tensor替换）
         messages = [
+            {
+                "role": "system",
+                "content": "You are a embodied AI Nova, please carefully observe the environmental images and answer user questions."
+            },
             {
                 "role": "user",
                 "content": [
@@ -109,7 +117,7 @@ if __name__ == "__main__":
     vl_processor = QwenVLM("/hy-tmp/weights/Qwen2.5-VL-7B-Instruct")
     
     # 图像路径
-    img_path = "/root/lingchen/Universal-Adversarial-Prompt-Attacks-on-VLMs/images/dog.png"
+    img_path = "/root/lingchen/Universal-Adversarial-Prompt-Attacks-on-VLMs/images/attack/test1.png"
     
     # 获取并打印图像大小
     img_size = vl_processor.get_image_size(img_path)
@@ -122,13 +130,7 @@ if __name__ == "__main__":
 
     # 加载图像并转换为张量
     img = Image.open(img_path).convert("RGB")
-    img = img.resize((524, 544), Image.BICUBIC)  
-        
-    # img_tensor = torch.tensor(np.array(img))  # 转换为张量
-    # transform = transforms.ToTensor()
-    # img_tensor = transform(img)  # 直接转张量：(C, H, W)，值范围0-1
-    
-    img_tensor = torch.as_tensor(img, dtype=torch.uint8).permute(2, 0, 1).contiguous()
+    img_tensor = torch.tensor(np.array(img))  # 转换为张量
     print(f"img_tensor.shape: {img_tensor.shape}")  # 应为 (H, W, C)
 
     # 生成图像描述

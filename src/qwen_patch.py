@@ -110,8 +110,8 @@ class QwenAdversarialPatch(QwenAdversarialBase):
 # =====================
 if __name__ == "__main__":
     MODEL_DIR = "/hy-tmp/weights/Qwen2.5-VL-7B-Instruct"
-    TARGET_IMAGE_PATH = "/root/lingchen/Universal-Adversarial-Prompt-Attacks-on-VLMs/images/apple.png"
-    BACKGROUND_IMAGE_PATH = "/root/lingchen/Universal-Adversarial-Prompt-Attacks-on-VLMs/images/dog.png"
+    TARGET_IMAGE_PATH = "/root/lingchen/Universal-Adversarial-Prompt-Attacks-on-VLMs/images/attack/test1.png"
+    BACKGROUND_IMAGE_PATH = "/root/lingchen/Universal-Adversarial-Prompt-Attacks-on-VLMs/images/attack/test1.png"
 
     # Patch 优化
     adv_patch = QwenAdversarialPatch(
@@ -121,4 +121,4 @@ if __name__ == "__main__":
         lr=1,
         steps=500
     )
-    adv_patch.train_patch(patch_size=(140, 140), position=(20, 30))
+    adv_patch.train_patch(patch_size=(140, 200), position=(220, 30))

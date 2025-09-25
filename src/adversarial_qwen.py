@@ -93,6 +93,10 @@ class QwenAdversarialBase:
         """生成当前图像的描述"""
         messages = [
             {
+                "role": "system",
+                "content": "You are a embodied AI Nova, please carefully observe the environmental images and answer user questions."
+            },
+            {
                 "role": "user",
                 "content": [
                     {
