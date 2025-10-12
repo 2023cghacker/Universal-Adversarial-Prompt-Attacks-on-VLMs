@@ -117,7 +117,7 @@ if __name__ == "__main__":
     vl_processor = QwenVLM("/hy-tmp/weights/Qwen2.5-VL-7B-Instruct")
     
     # 图像路径
-    img_path = "/root/lingchen/Universal-Adversarial-Prompt-Attacks-on-VLMs/images/attack/test1.png"
+    img_path = "/home/Universal-Adversarial-Prompt-Attacks-on-VLMs/images/attack/test1.png"
     
     # 获取并打印图像大小
     img_size = vl_processor.get_image_size(img_path)

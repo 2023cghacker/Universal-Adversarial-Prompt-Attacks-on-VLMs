@@ -110,8 +110,8 @@ class QwenAdversarialPatch(QwenAdversarialBase):
 # =====================
 if __name__ == "__main__":
     MODEL_DIR = "/hy-tmp/weights/Qwen2.5-VL-7B-Instruct"
-    TARGET_IMAGE_PATH = "/root/lingchen/Universal-Adversarial-Prompt-Attacks-on-VLMs/images/attack/test1.png"
-    BACKGROUND_IMAGE_PATH = "/root/lingchen/Universal-Adversarial-Prompt-Attacks-on-VLMs/images/attack/test1.png"
+    TARGET_IMAGE_PATH = "/home/Universal-Adversarial-Prompt-Attacks-on-VLMs/images/attack/test1.png"
+    BACKGROUND_IMAGE_PATH = "/home/Universal-Adversarial-Prompt-Attacks-on-VLMs/images/attack/test1.png"
 
     # Patch 优化
     adv_patch = QwenAdversarialPatch(
