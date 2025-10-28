@@ -69,7 +69,6 @@ class QwenAdversarialPatch(QwenAdversarialBase):
             print(f"cur_embeds.shape: {cur_embeds[0].shape}, self.target_embeds.shape: {self.target_embeds[0].shape}")
             # print(f"cur_embeds.type: {type(cur_embeds[0])}, self.target_embeds.type: {type(self.target_embeds[0])}")
             loss = loss_fn(cur_embeds[0], self.target_embeds[0])
-            self.visualize_embeddings_2d(cur_embeds[0], self.target_embeds[0],step)
 
 
             self.loss_history.append(loss.item())
@@ -93,7 +92,10 @@ class QwenAdversarialPatch(QwenAdversarialBase):
                 print(f"[Patch] Step {step+1}/{self.steps}, Loss={loss.item():.6f}")
                 
                 # 保存中间结果和生成描述
+                if step == 0:
+                    self.visualize_embeddings_2d(cur_embeds[0], self.target_embeds[0],step)
                 if (step + 1) % 10 == 0:
+                    self.visualize_embeddings_2d(cur_embeds[0], self.target_embeds[0],step)
                     img_path = os.path.join(self.output_dir, f"patch_step_{step+1}.png")
                     T.ToPILImage()(patched_image.to(torch.uint8).cpu()).save(img_path)
                     # T.ToPILImage()(patched_image.cpu()).save(img_path)
@@ -108,37 +110,66 @@ class QwenAdversarialPatch(QwenAdversarialBase):
         self._plot_loss()
         print(f"\n✅ Patch 优化完成，结果保存到 {final_img_path}")
         return final_img_path
-
-    def visualize_embeddings_2d(self, cur_embeds, target_embeds,step):
-        """可视化对比两个嵌入向量集合"""
-        # 转换为numpy数组，先将BFloat16转为float32
+    
+    def visualize_embeddings_2d(self, cur_embeds, target_embeds, step):
+        """2D可视化对比两个嵌入向量集合（新增对应点连线功能）"""
+        # 1. 张量转numpy数组（保持原逻辑，处理BFloat16转float32）
         cur_np = cur_embeds.cpu().detach().to(torch.float32).numpy()
         target_np = target_embeds.cpu().detach().to(torch.float32).numpy()
         
-        # 合并数据用于t-SNE
+        # 2. 合并数据用于t-SNE降维
         combined = np.vstack([cur_np, target_np])
-        
-        # t-SNE降维
         tsne = TSNE(n_components=2, random_state=42, perplexity=30)
         combined_2d = tsne.fit_transform(combined)
         
-        # 分离两组数据
+        # 3. 分离两组2D数据（维度均为(N, 2)，N为样本数量）
         cur_2d = combined_2d[:len(cur_np)]
         target_2d = combined_2d[len(cur_np):]
         
-        # 绘图
+        # 4. 绘图：先画散点，再画对应点连线（避免连线遮挡散点）
         plt.figure(figsize=(10, 8))
-        plt.scatter(cur_2d[:, 0], cur_2d[:, 1], c='blue', alpha=0.6, label='Current Embeddings')
-        plt.scatter(target_2d[:, 0], target_2d[:, 1], c='red', alpha=0.6, label='Target Embeddings')
-        plt.title('t-SNE Visualization of Embeddings')
-        plt.xlabel('Dimension 1')
-        plt.ylabel('Dimension 2')
-        plt.legend()
-        plt.grid(True, alpha=0.3)
-        # 先保存再显示，避免显示后保存为空图
-        plt.savefig(os.path.join(self.output_dir, f"visualize_embeddings_{step}.png"), dpi=300, bbox_inches='tight')
-        plt.show()
         
+        # -------------------------- 新增：绘制对应点连线 --------------------------
+        # 循环遍历每个索引，连接target_2d[i]与cur_2d[i]
+        for i in range(len(cur_2d)):  # len(cur_2d) = len(target_2d) = N，确保索引匹配
+            # 获取第i组对应点的坐标
+            x_coords = [target_2d[i, 0], cur_2d[i, 0]]  # x轴：target点 → cur点
+            y_coords = [target_2d[i, 1], cur_2d[i, 1]]  # y轴：target点 → cur点
+            # 绘制连线：设置浅色（灰色）、细线条（linewidth=0.8）、低透明度（alpha=0.5）
+            plt.plot(
+                x_coords, 
+                y_coords, 
+                c='gray',        # 连线颜色（与散点区分，避免干扰）
+                linewidth=0.8,   # 线条粗细（细线条避免遮挡散点）
+                alpha=0.5,       # 透明度（降低连线视觉权重）
+                linestyle='-'    # 线型（实线，清晰显示连接关系）
+            )
+        # --------------------------------------------------------------------------
+        
+        # 绘制散点（保持原逻辑，散点在连线上方，确保可见）
+        plt.scatter(
+            cur_2d[:, 0], cur_2d[:, 1], 
+            c='blue', alpha=0.6, label='Current Embeddings', 
+            s=60  # 适当调大散点，避免被连线覆盖
+        )
+        plt.scatter(
+            target_2d[:, 0], target_2d[:, 1], 
+            c='red', alpha=0.6, label='Target Embeddings', 
+            s=60
+        )
+        
+        # 5. 图样式配置（优化标题，明确包含连线信息）
+        plt.title(f't-SNE 2D Visualization (Step: {step}) - With Matching Lines', fontsize=14)
+        plt.xlabel('Dimension 1', fontsize=12)
+        plt.ylabel('Dimension 2', fontsize=12)
+        plt.legend(fontsize=10)  # 图例区分散点（连线无需单独加图例，避免冗余）
+        plt.grid(True, alpha=0.3)
+        
+        # 6. 保存与显示（文件名保留step，便于追溯训练阶段）
+        save_path = os.path.join(self.output_dir, f"visualize_embeddings_2d_with_lines_step_{step}.png")
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')  # bbox_inches避免标签截断
+        plt.show()
+    
     def visualize_embeddings_3d(self, cur_embeds, target_embeds, step):
         """3D可视化对比两个嵌入向量集合（带训练步数标记）"""
         # 1. 张量转numpy数组（保持原逻辑，确保数据格式正确）
@@ -217,4 +248,4 @@ if __name__ == "__main__":
         steps=500
     )
     # adv_patch.train_patch(patch_size=(140, 200), position=(100, 30))
-    adv_patch.train_patch(patch_size=(140, 400), position=(100, 30))
+    adv_patch.train_patch(patch_size=(150, 400), position=(100, 30))
