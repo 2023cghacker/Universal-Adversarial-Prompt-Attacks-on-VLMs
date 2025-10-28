@@ -166,7 +166,7 @@ class QwenAdversarialPatch(QwenAdversarialBase):
         plt.grid(True, alpha=0.3)
         
         # 6. 保存与显示（文件名保留step，便于追溯训练阶段）
-        save_path = os.path.join(self.output_dir, f"visualize_embeddings_2d_with_lines_step_{step}.png")
+        save_path = os.path.join(self.output_dir, f"visualize_embeddings_{step}.png")
         plt.savefig(save_path, dpi=300, bbox_inches='tight')  # bbox_inches避免标签截断
         plt.show()
     

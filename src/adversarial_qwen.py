@@ -64,7 +64,7 @@ class QwenAdversarialBase:
                 target_inputs['pixel_values'], 
                 target_inputs['image_grid_thw']
             )  # (1, seq_len, dim)
-        print("目标图像处理完成")
+        print(f"目标图像处理完成, image_grid_thw={target_inputs['image_grid_thw']}")
     
     def _init_optimizer(self):
         """初始化优化器、调度器和随机图像"""
