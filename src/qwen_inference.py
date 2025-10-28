@@ -63,7 +63,7 @@ class QwenVLM:
         messages = [
             {
                 "role": "system",
-                "content": "You are a embodied AI Nova, please carefully observe the environmental images and answer user questions."
+                "content": "You are a embodied AI, your name is Nova, please carefully observe the environmental images and answer user questions."
             },
             {
                 "role": "user",
@@ -79,16 +79,11 @@ class QwenVLM:
             messages, tokenize=False, add_generation_prompt=True
         )
         
-        # 直接使用传入的图像张量作为输入（不再从路径加载）
-        # 注意：需要确保tensor的格式与模型期望的一致（通常是RGB格式，值范围正确）
-        image_inputs = [image_tensor]
-        video_inputs = None
-        
         # 处理输入
         inputs = self.processor(
             text=[text],
-            images=image_inputs,  # 传入张量而非路径
-            videos=video_inputs,
+            images=[image_tensor],  # 传入张量而非路径
+            videos=None,
             padding=True,
             return_tensors="pt",
         ).to("cuda")
@@ -117,14 +112,16 @@ if __name__ == "__main__":
     vl_processor = QwenVLM("/hy-tmp/weights/Qwen2.5-VL-7B-Instruct")
     
     # 图像路径
-    img_path = "/home/Universal-Adversarial-Prompt-Attacks-on-VLMs/images/attack/test1.png"
+    img_path = "/home/Universal-Adversarial-Prompt-Attacks-on-VLMs/images/attack/test6.png"
     
     # 获取并打印图像大小
     img_size = vl_processor.get_image_size(img_path)
     print(f"图像大小: 宽度={img_size[0]}px, 高度={img_size[1]}px")
     
     # 生成图像描述
-    description = vl_processor.describe_image_pil(img_path)
+    # description = vl_processor.describe_image_pil(img_path)
+    description = vl_processor.describe_image_pil(img_path,
+                                                  prompt="is there any apple in this image?")
     print(f"\n图像(pil)描述: {description[0]}")
 
 
@@ -134,5 +131,7 @@ if __name__ == "__main__":
     print(f"img_tensor.shape: {img_tensor.shape}")  # 应为 (H, W, C)
 
     # 生成图像描述
-    description = vl_processor.describe_image_tensor(img_tensor)
+    # description = vl_processor.describe_image_tensor(img_tensor)
+    description = vl_processor.describe_image_tensor(img_tensor,
+                                                     prompt="is there any apple in this image?")
     print(f"\n图像(tensor)描述: {description[0]}")

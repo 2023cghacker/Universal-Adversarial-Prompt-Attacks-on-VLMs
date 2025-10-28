@@ -89,7 +89,7 @@ class QwenAdversarialBase:
         T.ToPILImage()(self.rand_image.squeeze(0).cpu()).save(img_path)
         return img_path
     
-    def _generate_description(self, img_tensor,step):
+    def _generate_description(self, img_tensor,step,prompt="Describe this image."):
         """生成当前图像的描述"""
         messages = [
             {
@@ -103,7 +103,7 @@ class QwenAdversarialBase:
                         "type": "image",
                         "image": os.path.join(self.output_dir, f"adv_step_{step+1}.png"),
                     },
-                    {"type": "text", "text": "Describe this image."},
+                    {"type": "text", "text": prompt},
                 ],
             }
         ]
