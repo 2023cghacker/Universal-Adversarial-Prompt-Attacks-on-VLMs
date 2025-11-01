@@ -112,16 +112,18 @@ if __name__ == "__main__":
     vl_processor = QwenVLM("/hy-tmp/weights/Qwen2.5-VL-7B-Instruct")
     
     # 图像路径
-    img_path = "/home/Universal-Adversarial-Prompt-Attacks-on-VLMs/images/attack/test6.png"
+    # img_path = "/home/Universal-Adversarial-Prompt-Attacks-on-VLMs/images/attack/test6.png"
+    img_path = "/home/Universal-Adversarial-Prompt-Attacks-on-VLMs/images/B.png"
+    # img_path = "/home/Universal-Adversarial-Prompt-Attacks-on-VLMs/output/1029_211930/noise_step_620.png"
     
     # 获取并打印图像大小
     img_size = vl_processor.get_image_size(img_path)
     print(f"图像大小: 宽度={img_size[0]}px, 高度={img_size[1]}px")
     
     # 生成图像描述
-    # description = vl_processor.describe_image_pil(img_path)
-    description = vl_processor.describe_image_pil(img_path,
-                                                  prompt="is there any apple in this image?")
+    description = vl_processor.describe_image_pil(img_path)
+    # description = vl_processor.describe_image_pil(img_path,
+    #                                               prompt="is there any apple in this image?")
     print(f"\n图像(pil)描述: {description[0]}")
 
 
@@ -131,7 +133,7 @@ if __name__ == "__main__":
     print(f"img_tensor.shape: {img_tensor.shape}")  # 应为 (H, W, C)
 
     # 生成图像描述
-    # description = vl_processor.describe_image_tensor(img_tensor)
-    description = vl_processor.describe_image_tensor(img_tensor,
-                                                     prompt="is there any apple in this image?")
+    description = vl_processor.describe_image_tensor(img_tensor)
+    # description = vl_processor.describe_image_tensor(img_tensor,
+    #                                                  prompt="is there any apple in this image?")
     print(f"\n图像(tensor)描述: {description[0]}")

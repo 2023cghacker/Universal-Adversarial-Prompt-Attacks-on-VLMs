@@ -298,7 +298,7 @@ class QwenAdversarialBase:
                     img_path = os.path.join(self.output_dir, f"noise_step_{step+1}.png")
                     T.ToPILImage()(noiseed_image.to(torch.uint8).cpu()).save(img_path)
                     # T.ToPILImage()(noiseed_image.cpu()).save(img_path)
-                    desc = self._generate_description(noiseed_image,step, prompt="Please describe the textual information in the image.")
+                    desc = self._generate_description(noiseed_image,step, prompt="Describe this image")
                     print(f"图像描述: {desc}")
                     self._plot_loss()
          
@@ -361,15 +361,15 @@ class QwenAdversarialBase:
         plt.title(f't-SNE 2D Visualization (Step: {step}) - With Matching Lines', fontsize=14)
         plt.xlabel('Dimension 1', fontsize=12)
         plt.ylabel('Dimension 2', fontsize=12)
-        plt.xlim(-45, 30)   # X轴范围：[-5, 5]
-        plt.ylim(-25, 28)   # Y轴范围：[-3, 3]
+        # plt.xlim(-45, 30)   # X轴范围：[-5, 5]
+        # plt.ylim(-25, 28)   # Y轴范围：[-3, 3]
         plt.legend(fontsize=10)  # 图例区分散点（连线无需单独加图例，避免冗余）
         plt.grid(True, alpha=0.3)
         
         # 6. 保存与显示（文件名保留step，便于追溯训练阶段）
         save_path = os.path.join(self.output_dir, f"visualize_embeddings_{step}.png")
         plt.savefig(save_path, dpi=300, bbox_inches='tight')  # bbox_inches避免标签截断
-        plt.show()
+        # plt.show()
     
     def visualize_embeddings_3d(self, cur_embeds, target_embeds, step):
         """3D可视化对比两个嵌入向量集合（带训练步数标记）"""
@@ -428,21 +428,23 @@ class QwenAdversarialBase:
         # 文件名带step，方便区分不同训练阶段的可视化结果
         save_path = os.path.join(self.output_dir, f"visualize_embeddings_step_{step}.png")
         plt.savefig(save_path, dpi=300, bbox_inches='tight')  # bbox_inches避免标签被截断
-        plt.show()
+        # plt.show()
         
         
 # 使用示例
 if __name__ == "__main__":
     MODEL_DIR = "/hy-tmp/weights/Qwen2.5-VL-7B-Instruct"
-    TARGET_IMAGE_PATH = "/home/Universal-Adversarial-Prompt-Attacks-on-VLMs/images/attack/content.png"
+    # TARGET_IMAGE_PATH = "/home/Universal-Adversarial-Prompt-Attacks-on-VLMs/images/attack/content1.png"
+    TARGET_IMAGE_PATH = "/home/Universal-Adversarial-Prompt-Attacks-on-VLMs/images/B.png"
     BACKGROUND_IMAGE_PATH = "/home/Universal-Adversarial-Prompt-Attacks-on-VLMs/images/apple.png"
+    # BACKGROUND_IMAGE_PATH = "/home/Universal-Adversarial-Prompt-Attacks-on-VLMs/images/Nothing_white.png"
     
     # 创建实例并运行优化
     adversarial = QwenAdversarialBase(
         model_dir=MODEL_DIR,
         target_image_path=TARGET_IMAGE_PATH,
-        lr=4e-1,
-        steps=300
+        lr=5e-1,
+        steps=1000
     )
     # adversarial.run_optimization(background_image_path=BACKGROUND_IMAGE_PATH)
     adversarial.train_noise(background_image_path=BACKGROUND_IMAGE_PATH)
