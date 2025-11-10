@@ -13,6 +13,7 @@ class QwenVLM:
             model_path,
             torch_dtype=torch.bfloat16,
             device_map="auto",
+            aaaa=32412
         )
         self.processor = AutoProcessor.from_pretrained(model_path)
     
@@ -98,6 +99,59 @@ class QwenVLM:
             generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
         )
     
+    def describe_multi_image(self, image_list, prompt="Describe these images.", max_new_tokens=128):
+        """
+        同时描述多张图像
+        参数:
+            image_list: list[Union[str, PIL.Image.Image, torch.Tensor]]
+                支持图像路径、PIL图像对象或张量
+            prompt: str
+                文本提示
+            max_new_tokens: int
+                最大生成token数
+        """
+        # 构建输入消息
+        messages = [
+            {
+                "role": "system",
+                "content": "You are a multimodal embodied AI named Nova. Please analyze all provided images and answer comprehensively."
+            },
+            {
+                "role": "user",
+                "content": []
+            }
+        ]
+
+        # 添加多张图像到内容中
+        for img in image_list:
+            messages[1]["content"].append({"type": "image", "image": img})
+        messages[1]["content"].append({"type": "text", "text": prompt})
+
+        # 处理输入
+        text = self.processor.apply_chat_template(
+            messages, tokenize=False, add_generation_prompt=True
+        )
+
+        image_inputs, video_inputs = process_vision_info(messages)
+        print(f"image_inputs length: {len(image_inputs)},image_inputs: {image_inputs}")
+        inputs = self.processor(
+            text=[text],
+            images=image_inputs,
+            videos=video_inputs,
+            padding=True,
+            return_tensors="pt"
+        ).to("cuda")
+
+        # 生成回答
+        generated_ids = self.model.generate(**inputs, max_new_tokens=max_new_tokens)
+        generated_ids_trimmed = [
+            out_ids[len(in_ids):] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
+        ]
+
+        return self.processor.batch_decode(
+            generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
+        )
+
     
     @staticmethod
     def get_image_size(image_path):
@@ -137,3 +191,16 @@ if __name__ == "__main__":
     # description = vl_processor.describe_image_tensor(img_tensor,
     #                                                  prompt="is there any apple in this image?")
     print(f"\n图像(tensor)描述: {description[0]}")
+    
+    
+    
+    images = [
+        "/home/Universal-Adversarial-Prompt-Attacks-on-VLMs/images/H.png",
+        "/home/Universal-Adversarial-Prompt-Attacks-on-VLMs/images/B.png"
+    ]
+
+    desc = vl_processor.describe_multi_image(
+        images,
+        prompt="Compare the two scenes and describe their differences."
+    )
+    print(desc[0])

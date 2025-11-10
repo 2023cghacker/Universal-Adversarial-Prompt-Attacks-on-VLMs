@@ -104,6 +104,10 @@ class QwenAdversarialBase:
                         "type": "image",
                         "image": os.path.join(self.output_dir, f"adv_step_{step+1}.png"),
                     },
+                                        {
+                        "type": "image",
+                        "image": os.path.join(self.output_dir, f"adv_step_{step+1}.png"),
+                    },
                     {"type": "text", "text": prompt},
                 ],
             }
@@ -116,7 +120,7 @@ class QwenAdversarialBase:
         inputs = self.processor(
             text=[text],
             # images=[img_tensor.squeeze(0).clamp(0, 1)],
-            images=[img_tensor],
+            images=img_tensor,
             padding=True,
             return_tensors="pt",
         )
